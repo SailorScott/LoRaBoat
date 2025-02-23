@@ -1,5 +1,5 @@
 {
-    "sketch": "LoRaBoaT.ino",
+    "sketch": "LoRaBoat.ino",
     "port": "COM11",
     "board": "CubeCell:CubeCell:CubeCell-GPS",
     "output": "./build"
