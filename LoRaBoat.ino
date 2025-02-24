@@ -25,10 +25,10 @@ SSD1306Wire displayBd(0x3c, 500000, SDA, SCL, GEOMETRY_128_64, GPIO10); // addr 
 Air530ZClass GPS;
 
 #define DEVICE_ID 10   // Device ID in database
-#define TXSECONDSLOT 1 // Tx slot for secondx - see database for assigned time slot
-#define TXTENTHSSLOT 1 // Tx slot for tenths of second
+#define TXSECONDSLOT 1 // Tx slot for secondx - see database for assigned time slot i.e 1.2 means 1 second slot and 2 tenths of a second slot.
+#define TXTENTHSSLOT 1 // Tx slot for tenths of second - see database for assigned time slot
 
-#define TXSECTIMETRIG 4      // Time triggerred sampling - transmit every 4 seconds for boats. But also need to add seconds slot.
+#define TXSECTIMETRIG 4      // Time triggerred sampling - transmit every 4 seconds for boats.
 #define GPSREADSECTIMETRIG 2 // time triggered reading of GPS at 2 seconds (0, 2, 4, 6, 8, 10, etc.)
 
 // LORA SETUP
@@ -54,12 +54,12 @@ Air530ZClass GPS;
 #define RX_TIMEOUT_VALUE 1000
 #define BUFFER_SIZE 200 // room for 4 messages
 
-#define BOATAUTOSLEETIME 3600000 // 1 hour // 18000000 // 5 hours then go to sleep. Reset needed to wake up.
+#define BOATAUTOSLEETIME 18000000 // 5 hours then go to sleep. Reset needed to wake up. 3600000 = 1 hour
 
-const int MessageType = 1;     // Boat Message
-int TxCounter = 0;             // Incrument with each send, used for checking for dropped messages.
+const int MessageType = 1;     // Boat Message type - used for parsing algorithm on server side.
+int WaitingGPSCounter = 0;     // Incrument while waiting for GPS to be picked up.
 char transmitStr[BUFFER_SIZE]; // Used for holding the Tx message
-char transmit2Str[BUFFER_SIZE];
+char gpsMsgBuffer[BUFFER_SIZE];
 int secondsCounter = -99; // Used for counting seconds for Tx slot
 
 int startTran = 0; // Used for timing the Tx message
@@ -138,7 +138,7 @@ void setup()
   GPS.begin(57600);
 
   // Setup Pins usage for the board
-  pinMode(GPIO12, INPUT_PULLUP); // GPS 1 second pulse
+  pinMode(GPIO12, INPUT_PULLUP);   // GPS 1 second pulse
   pinMode(GPIO6, OUTPUT_PULLDOWN); // Nav light
   pinMode(ADC2, INPUT);            // Solar panel voltage
 
@@ -185,11 +185,11 @@ void loop()
     {
       attachInterrupt(digitalPinToInterrupt(GPIO12), GPS1SecPulse, RISING);
     }
-    TxCounter = TxCounter + 1;
+    WaitingGPSCounter = WaitingGPSCounter + 1;
     displayBd.clear();
-    displayBd.drawString(0, 0, String(TxCounter));
+    displayBd.drawString(0, 0, String(WaitingGPSCounter));
     displayBd.display();
-    Serial.println("Wait GPS Boot.." + String(TxCounter));
+    Serial.println("Wait GPS Boot.." + String(WaitingGPSCounter));
     delay(1000);
     break;
 
@@ -281,7 +281,7 @@ bool buildGPSTXMessage(void)
     // Serial.println("buildGPSTXMessage");
 
     // GPS is good, build up transmit string
-    sprintf(transmit2Str,
+    sprintf(gpsMsgBuffer,
             "|%d,%d,"       // Device/msg
             "%02d%02d%02d," // gps time
             "%d.%d,"        // Lat
@@ -294,8 +294,8 @@ bool buildGPSTXMessage(void)
             (int)GPS.course.deg(),
             (int)(GPS.speed.knots() * 10));
 
-    strcat(transmitStr, transmit2Str);
-    transmit2Str[0] = 0; // clear transmit2Str
+    strcat(transmitStr, gpsMsgBuffer);
+    gpsMsgBuffer[0] = 0; // clear gpsMsgBuffer
     return true;         // good read
   }
   else
